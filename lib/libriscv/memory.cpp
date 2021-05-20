@@ -60,9 +60,11 @@ namespace riscv
 	{
 		this->clear_all_pages();
 #ifdef RISCV_RODATA_SEGMENT_IS_SHARED
-		// only the original machine owns rodata range
+		// only the original machine owns data ranges
 		if (!this->m_original_machine) {
 			m_ropages.pages.release();
+			m_rwpages.pages.release();
+			// TODO: iterate rwpages and free faulted-in pages
 		}
 #endif
 #ifdef RISCV_INSTR_CACHE
@@ -175,7 +177,27 @@ namespace riscv
 
 #ifdef RISCV_RODATA_SEGMENT_IS_SHARED
 		if (attr.read && !attr.write && m_ropages.end == 0) {
-			serialize_pages(m_ropages, hdr->p_vaddr, src, len, attr);
+			serialize_pages(m_ropages, hdr->p_vaddr, src, len, len, attr);
+			return;
+		}
+		if (attr.read && attr.write && m_rwpages.end == 0) {
+			printf("Writable range: 0x%lX -> 0x%lX\n",
+				hdr->p_vaddr, hdr->p_vaddr + len);
+			// Detect .bss
+			auto* bss = section_by_name(".bss");
+			if (bss != nullptr) {
+				const auto rw_end = hdr->p_vaddr + len;
+				const auto bss_begin = bss->sh_addr;
+				printf("RW end: 0x%lX BSS begin 0x%lX\n", rw_end, bss_begin);
+				if (rw_end / Page::size() == bss_begin / Page::size())
+				{
+					const size_t longer_len = (bss->sh_addr + bss->sh_size) - hdr->p_vaddr;
+					printf("It should be much longer now: 0x%zX\n", longer_len);
+					serialize_pages(m_rwpages, hdr->p_vaddr, src, len, longer_len, attr);
+					return;
+				}
+			}
+			serialize_pages(m_rwpages, hdr->p_vaddr, src, len, len, attr);
 			return;
 		}
 #endif
@@ -196,16 +218,16 @@ namespace riscv
 
 	template <int W>
 	void Memory<W>::serialize_pages(MemoryArea& area,
-		address_t addr, const char* src, size_t size, PageAttributes attr)
+		address_t addr, const char* src, size_t memsize, size_t size, PageAttributes attr)
 	{
 #ifdef RISCV_RODATA_SEGMENT_IS_SHARED
 		constexpr address_t PMASK = Page::size()-1;
 		const address_t pbase = addr & ~(address_t) PMASK;
 		const size_t prelen  = addr - pbase;
-		const size_t midlen  = size + prelen;
+		const size_t endlen  = size + prelen;
 		const size_t plen =
-			(PMASK & midlen) ? ((midlen + Page::size()) & ~PMASK) : midlen;
-		const size_t postlen = plen - midlen;
+			(PMASK & endlen) ? ((endlen + Page::size()) & ~PMASK) : endlen;
+		const size_t postlen = plen - (prelen + memsize);
 		// Detect bogus values
 		if (UNLIKELY(prelen > plen || prelen + size > plen)) {
 			throw std::runtime_error("Segment virtual base was bogus");
@@ -214,8 +236,8 @@ namespace riscv
 		// Create the whole memory range
 		auto* pagedata = new uint8_t[plen];
 		std::memset(&pagedata[0],      0,     prelen);
-		std::memcpy(&pagedata[prelen], src,   size);
-		std::memset(&pagedata[prelen + size], 0,   postlen);
+		std::memcpy(&pagedata[prelen], src,   memsize);
+		std::memset(&pagedata[prelen + memsize], 0,   postlen);
 		area.data.reset(pagedata);
 
 		const size_t npages = plen / Page::size();
@@ -348,6 +370,10 @@ namespace riscv
 		this->m_ropages.begin = master.memory.m_ropages.begin;
 		this->m_ropages.end   = master.memory.m_ropages.end;
 		this->m_ropages.pages.reset(master.memory.m_ropages.pages.get());
+
+		this->m_rwpages.begin = master.memory.m_rwpages.begin;
+		this->m_rwpages.end   = master.memory.m_rwpages.end;
+		this->m_rwpages.pages.reset(master.memory.m_rwpages.pages.get());
 #endif
 	}
 

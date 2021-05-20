@@ -35,6 +35,11 @@ namespace riscv
 	template <int W>
 	Page& Memory<W>::create_page(const address_t pageno)
 	{
+#ifdef RISCV_RODATA_SEGMENT_IS_SHARED
+		if (m_rwpages.contains(pageno)) {
+			return m_rwpages.pages[pageno - m_rwpages.begin];
+		}
+#endif
 		auto it = m_pages.find(pageno);
 		if (it != m_pages.end()) {
 			Page& page = it->second;

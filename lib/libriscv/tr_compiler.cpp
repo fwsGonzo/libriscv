@@ -30,7 +30,7 @@ namespace riscv
 	{
 		return compiler() + " -O0 -s -std=c99 -fPIC -shared -x c "
 		" -ffreestanding -nostdlib -fexceptions -fno-omit-frame-pointer "
-		 + "-DRISCV_TRANSLATION_DYLIB=" + std::to_string(arch)
+		"-DRISCV_TRANSLATION_DYLIB=" + std::to_string(arch)
 		 + " -pipe " + cflags();
 	}
 

@@ -15,6 +15,8 @@ R"123(#include <stdint.h>
 	typedef int64_t saddr_t;
 #endif
 
+#define PURE __attribute__((pure))
+
 typedef union {
 	int32_t i32[2];
 	float   f32[2];
@@ -59,6 +61,8 @@ static struct CallbackTable {
 	void (*mem_st16)(CPU*, addr_t, uint16_t);
 	void (*mem_st32)(CPU*, addr_t, uint32_t);
 	void (*mem_st64)(CPU*, addr_t, uint64_t);
+	void* (*mem_getr)(CPU*, addr_t) PURE;
+	void* (*mem_getw)(CPU*, addr_t) PURE;
 	void (*jump)(CPU*, addr_t, uint64_t);
 	int  (*syscall)(CPU*, addr_t, uint64_t);
 	void (*stop)(CPU*, uint64_t);

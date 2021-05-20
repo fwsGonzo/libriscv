@@ -79,6 +79,21 @@ inline void emit_op(std::string& code, const std::string& op, const std::string&
 		from_reg(rd) + " = " + from_reg(tinfo, rs1) + op + rs2 + ";");
 	}
 }
+template <int W, int N, bool Signed>
+inline void emit_memop(std::string& code, const TransInfo<W>& tinfo,
+	uint32_t rd, uint32_t rs1, uint64_t signed_imm)
+{
+	std::string func = "api.mem_ld" + std::to_string(N);
+
+	if (rd == 0) {
+		add_code(code,
+		func + "(cpu, " + from_reg(tinfo, rs1) + " + " + from_imm(signed_imm) + ");");
+	} else {
+		std::string cast = (Signed) ? "(saddr_t)(int" + std::to_string(N) + "_t)" : "";
+		add_code(code,
+		from_reg(rd) + " = " + cast + func + "(cpu, " + from_reg(tinfo, rs1) + " + " + from_imm(signed_imm) + ");");
+	}
+}
 
 template <int W>
 void CPU<W>::emit(std::string& code, const std::string& func, instr_pair* ip, const TransInfo<W>& tinfo) const
@@ -102,54 +117,25 @@ void CPU<W>::emit(std::string& code, const std::string& func, instr_pair* ip, co
 		case RV32I_LOAD:
 			switch (instr.Itype.funct3) {
 			case 0x0: // I8
-				if (instr.Itype.rd == 0) {
-					add_code(code,
-					"api.mem_ld8(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} else {
-					add_code(code,
-					from_reg(instr.Itype.rd) + " = (saddr_t)(int8_t)api.mem_ld8(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} break;
+				emit_memop<W, 8, true>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
+				break;
 			case 0x1: // I16
-				if (instr.Itype.rd == 0) {
-					add_code(code,
-					"api.mem_ld16(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} else {
-					add_code(code,
-					from_reg(instr.Itype.rd) + " = (saddr_t)(int16_t)api.mem_ld16(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} break;
+				emit_memop<W, 16, true>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
+				break;
 			case 0x2: // I32
-				if (instr.Itype.rd == 0) {
-					add_code(code,
-					"api.mem_ld32(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} else {
-					if constexpr (W == 4) {
-						add_code(code,
-							from_reg(instr.Itype.rd) + " = api.mem_ld32(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-					} else {
-						add_code(code,
-							from_reg(instr.Itype.rd) + " = (saddr_t)(int32_t)api.mem_ld32(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-					}
-				} break;
+				emit_memop<W, 32, true>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
+				break;
 			case 0x3: // I64
-				if (instr.Itype.rd == 0) {
-					add_code(code,
-					"api.mem_ld64(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				} else {
-					add_code(code,
-					from_reg(instr.Itype.rd) + " = api.mem_ld64(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
-				}
+				emit_memop<W, 64, true>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
 				break;
 			case 0x4: // U8
-				add_code(code,
-				from_reg(instr.Itype.rd) + " = api.mem_ld8(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
+				emit_memop<W, 8, false>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
 				break;
 			case 0x5: // U16
-				add_code(code,
-				from_reg(instr.Itype.rd) + " = api.mem_ld16(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
+				emit_memop<W, 16, false>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
 				break;
 			case 0x6: // U32
-				add_code(code,
-				from_reg(instr.Itype.rd) + " = api.mem_ld32(cpu, " + from_reg(tinfo, instr.Itype.rs1) + " + " + from_imm(instr.Itype.signed_imm()) + ");");
+				emit_memop<W, 32, false>(code, tinfo, instr.Itype.rd, instr.Itype.rs1, instr.Itype.signed_imm());
 				break;
 			default:
 				ILLEGAL_AND_EXIT();

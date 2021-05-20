@@ -79,6 +79,9 @@ inline const Page& Memory<W>::get_pageno(const address_t pageno) const noexcept
 	if (m_ropages.contains(pageno)) {
 		return m_ropages.pages[pageno - m_ropages.begin];
 	}
+	if (m_rwpages.contains(pageno)) {
+		return m_rwpages.pages[pageno - m_rwpages.begin];
+	}
 #endif
 	auto it = m_pages.find(pageno);
 	if (LIKELY(it != m_pages.end())) {

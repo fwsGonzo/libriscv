@@ -298,6 +298,10 @@ if constexpr (LOOP_OFFSET_MAX > 0) {
 		.mem_write64 = [] (CPU<W>& cpu, address_type<W> addr, uint64_t val) {
 			cpu.machine().memory.template write<uint64_t> (addr, val);
 		},
+		.mem_getrptr = [] (CPU<W>& cpu, address_type<W> addr) -> void* {
+			auto& page = cpu.machine().memory.get_readable_page(addr);
+			return &page.data() + (addr & (Page::size()-1));
+		},
 		.jump = [] (CPU<W>& cpu, address_type<W> addr, uint64_t val) {
 			cpu.jump(addr);
 			cpu.machine().increment_counter(val);

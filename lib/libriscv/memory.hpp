@@ -111,11 +111,14 @@ namespace riscv
 		static const Page& default_page_read(const Memory&, size_t);
 		// NOTE: use print_and_pause() to immediately break!
 		void trap(address_t page_addr, mmio_cb_t callback);
-		// shared pages (regular pages will have priority!)
+		// Shared pages (regular pages will have priority!)
 		Page&  install_shared_page(address_t pageno, const Page&);
-		// create pages for non-owned (shared) memory with given attributes
+		// Create pages for non-owned (shared) memory with given attributes
 		void insert_non_owned_memory(
 			address_t dst, void* src, size_t size, PageAttributes = {});
+		// Advanced functions that faults in and gives you the page for an address
+		const Page& get_readable_page(address_t);
+		Page& get_writable_page(address_t);
 
 		// Returns true if the address is inside the executable code segment
 		bool is_executable(address_t addr);
@@ -155,8 +158,6 @@ namespace riscv
 		void initial_paging();
 		[[noreturn]] static void protection_fault(address_t);
 		const Page& get_pageno_slowpath(address_t) const noexcept;
-		const Page& get_readable_page(address_t);
-		Page& get_writable_page(address_t);
 		// Helpers
 		template <typename T>
 		static void foreach_helper(T& mem, address_t addr, size_t len,
@@ -185,7 +186,7 @@ namespace riscv
 		// ELF loader
 		void binary_loader(const MachineOptions<W>&);
 		void binary_load_ph(const MachineOptions<W>&, const Phdr*);
-		void serialize_pages(MemoryArea&, address_t, const char*, size_t, PageAttributes);
+		void serialize_pages(MemoryArea&, address_t, const char*, size_t, size_t, PageAttributes);
 		// Machine copy-on-write fork
 		void machine_loader(const Machine<W>&, const MachineOptions<W>&);
 
@@ -204,6 +205,7 @@ namespace riscv
 
 #ifdef RISCV_RODATA_SEGMENT_IS_SHARED
 		MemoryArea m_ropages;
+		MemoryArea m_rwpages;
 #endif
 
 		address_t m_start_address = 0;
