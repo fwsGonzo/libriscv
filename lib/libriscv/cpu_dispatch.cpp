@@ -22,6 +22,7 @@ namespace riscv
 {
 	static constexpr bool VERBOSE_JUMPS = riscv::verbose_branches_enabled;
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#warning "The emulator is currently built with sanitizer and fuzzing mode enabled"
 	static constexpr bool FUZZING = true;
 #else
 	static constexpr bool FUZZING = false;
@@ -75,6 +76,14 @@ namespace riscv
 #define OVERFLOW_CHECKED_JUMP() \
 	goto check_jump
 
+// We will not use the undefined sanitizer outside of
+// sanitizing and fuzzing modes. Sanitizers are not effective
+// anyway without defining FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION.
+#if defined(__GNUG__) && !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+#define DISPATCH_ATTR RISCV_HOT_PATH() __attribute__((no_sanitize("undefined")))
+#else
+#define DISPATCH_ATTR RISCV_HOT_PATH()
+#endif
 
 template <int W> DISPATCH_ATTR
 bool CPU<W>::simulate(address_t pc, uint64_t inscounter, uint64_t maxcounter)
