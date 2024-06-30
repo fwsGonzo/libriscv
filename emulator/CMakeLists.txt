@@ -63,11 +63,22 @@ endif()
 include(CheckFunctionExists)
 check_function_exists("getopt_long" HAVE_GETOPT_LONG)
 
+if (LINUX)
+	### jemalloc
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(JEMALLOC jemalloc)
+	pkg_search_module(JEMALLOC jemalloc)
+endif()
+
+### libriscv
 add_subdirectory(../lib lib)
 
 function (add_emulator NAME)
 	add_executable(${NAME} ${SOURCES})
 	target_link_libraries(${NAME} riscv)
+	if (JEMALLOC_FOUND)
+		target_link_libraries(${NAME} ${JEMALLOC_LIBRARIES})
+	endif()
 	message(STATUS "ARGN is ${ARGN}")
 	target_compile_definitions(${NAME} PRIVATE ${ARGN} HAVE_GETOPT_LONG=${HAVE_GETOPT_LONG})
 	if (STATIC_BUILD)

@@ -20,6 +20,7 @@ struct FileDescriptors
 
 	// Insert and manage real FDs, return virtual FD
 	int assign_file(real_fd_type fd) { return assign(fd, false); }
+	int assign_pipe(real_fd_type fd);
 	int assign_socket(real_fd_type fd) { return assign(fd, true); }
 	int assign(real_fd_type fd, bool socket);
 	// Get real FD from virtual FD
@@ -28,10 +29,13 @@ struct FileDescriptors
 	// Remove virtual FD and return real FD
     real_fd_type erase(int vfd);
 
-	bool is_socket(int) const;
+	bool is_socket(int vfd) const { return (vfd & SOCKET_BIT) != 0; }
+	bool is_pipe(int vfd) const { return (vfd & PIPE_BIT) != 0; }
+	bool is_file(int vfd) const { return !is_socket(vfd) && !is_pipe(vfd); }
 	bool permit_write(int vfd) {
 		if (is_socket(vfd)) return true;
-		else return permit_file_write;
+		else if (is_pipe(vfd)) return true;
+		return permit_file_write;
 	}
 
 	~FileDescriptors();
@@ -41,10 +45,12 @@ struct FileDescriptors
 	// Default working directory (fake root)
 	std::string cwd = "/home";
 
-	static constexpr int FILE_D_BASE = 0x1000;
-	static constexpr int SOCKET_D_BASE = 0x40001000;
-	int file_counter = FILE_D_BASE;
-	int socket_counter = SOCKET_D_BASE;
+	static constexpr int FILE_BASE = 0x1000;
+	static constexpr int FILE_BIT   = 0x0;
+	static constexpr int PIPE_BIT   = 0x10000000;
+	static constexpr int SOCKET_BIT = 0x40000000;
+	int file_counter   = FILE_BASE;
+	int socket_counter = FILE_BASE;
 
 	bool permit_filesystem = false;
 	bool permit_file_write = false;
@@ -58,11 +64,17 @@ struct FileDescriptors
 
 inline int FileDescriptors::assign(FileDescriptors::real_fd_type real_fd, bool socket)
 {
-	int virtfd;
-	if (!socket)
-		virtfd = file_counter++;
-	else
-		virtfd = socket_counter++;
+	int virtfd = file_counter++;
+	if (socket) virtfd |= SOCKET_BIT;
+	else virtfd |= FILE_BIT;
+
+	translation.emplace(virtfd, real_fd);
+	return virtfd;
+}
+inline int FileDescriptors::assign_pipe(FileDescriptors::real_fd_type real_fd)
+{
+	int virtfd = file_counter++;
+	virtfd |= PIPE_BIT;
 
 	translation.emplace(virtfd, real_fd);
 	return virtfd;
@@ -90,11 +102,6 @@ inline FileDescriptors::real_fd_type FileDescriptors::erase(int virtfd)
 		return real_fd;
 	}
 	return -EBADF;
-}
-
-inline bool FileDescriptors::is_socket(int virtfd) const
-{
-	return virtfd >= SOCKET_D_BASE;
 }
 
 } // riscv

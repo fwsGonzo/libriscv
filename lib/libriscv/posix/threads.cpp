@@ -226,19 +226,23 @@ void Machine<W>::setup_posix_threads()
 			address_type<W> cur = 0;
 			address_type<W> max = 0;
 		} lim;
-		constexpr int RISCV_RLIMIT_STACK = 3;
-		if (old_addr != 0) {
-			if (resource == RISCV_RLIMIT_STACK) {
-				lim.cur = 0x200000;
-				lim.max = 0x200000;
-			}
+		constexpr int RISCV_RLIMIT_STACK  = 3;
+		constexpr int RISCV_RLIMIT_NOFILE = 7;
+		if (old_addr != 0 && resource == RISCV_RLIMIT_STACK) {
+			lim.cur = 0x200000;
+			lim.max = 0x200000;
+			machine.copy_to_guest(old_addr, &lim, sizeof(lim));
+			machine.set_result(0);
+		} else if (old_addr != 0 && resource == RISCV_RLIMIT_NOFILE) {
+			lim.cur = 1024;
+			lim.max = 1024;
 			machine.copy_to_guest(old_addr, &lim, sizeof(lim));
 			machine.set_result(0);
 		} else {
 			machine.set_result(-EINVAL);
 		}
 		THPRINT(machine,
-			">>> prlimit64(...) = %d\n", machine.return_value<int>());
+			">>> prlimit64(0x%X) = %d\n", resource, machine.return_value<int>());
 	});
 }
 

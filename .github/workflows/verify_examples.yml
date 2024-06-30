@@ -15,7 +15,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y gcc-12-riscv64-linux-gnu g++-12-riscv64-linux-gnu gcc g++
+        sudo apt install -y gcc-12-riscv64-linux-gnu g++-12-riscv64-linux-gnu gcc g++ pkg-config libjemalloc-dev
 
     - name: Configure emulator
       env:

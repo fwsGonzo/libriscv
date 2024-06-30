@@ -4,7 +4,9 @@ RUN apt update && apt install -y \
 	cmake git \
 	clang-18 \
 	tcc libtcc-dev \
-	g++-13-riscv64-linux-gnu
+	g++-13-riscv64-linux-gnu \
+	pkg-config \
+	libjemalloc-dev
 
 ENV CXX=clang++-18
 

@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y g++ clang
+        sudo apt install -y g++ clang pkg-config libjemalloc-dev
 
     - name: Install newer Clang
       run: |

@@ -5,7 +5,12 @@
 #include <chrono>
 #include "settings.hpp"
 static inline std::vector<uint8_t> load_file(const std::string&);
-static constexpr uint64_t MAX_MEMORY = 2000ULL << 20;
+// On 32-bit systems, max 2GB. NodeJS uses a lot of virtual allocations, so max 12GB on 64-bit.
+#if defined(__LP64__) || defined(_WIN64)
+static constexpr uint64_t MAX_MEMORY = 12000ULL << 20; // 12GB
+#else
+static constexpr uint64_t MAX_MEMORY = 2000ULL << 20;  // 2GB
+#endif
 static const std::string DYNAMIC_LINKER = "/usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1";
 
 struct Arguments {

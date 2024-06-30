@@ -20,7 +20,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt install -y g++-mingw-w64-x86-64
+        sudo apt install -y g++-mingw-w64-x86-64 pkg-config
 
     - name: CMake emulator
       working-directory: ${{github.workspace}}/emulator

@@ -109,7 +109,7 @@ private:
 	void report_status();
 	void close_now();
 	riscv::Machine<W>* m_machine;
-	uint64_t m_ilimit = 16'000'000UL;
+	uint64_t m_ilimit = 1'000'000'000ULL;
     socket_fd_type  sockfd;
 	bool m_closed  = false;
 	bool m_verbose = false;
