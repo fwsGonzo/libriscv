@@ -27,9 +27,283 @@
 #define VIEW_INSTR_AS(name, x) \
 	auto&& name = *(x *)&d->instr;
 #define EXECUTE_INSTR() \
-	computed_opcode<W>[d->get_bytecode()](d, exec, cpu, pc, counter)
-#define EXECUTE_CURRENT()              \
-	MUSTTAIL return EXECUTE_INSTR();
+	computed_opcode<W>[int(d->get_bytecode())](d, exec, cpu, pc, counter)
+
+#ifdef RISCV_64I
+#define RV64I_LOAD_STORE()  \
+	case RV32I_BC_LDWU:                	\
+		if constexpr (W == 8)          	\
+			MUSTTAIL return rv32i_ldwu(d, exec, cpu, pc, counter); \
+		else                           	\
+			RISCV_UNREACHABLE();       	\
+	case RV32I_BC_LDD:                 	\
+		if constexpr (W == 8)          	\
+			MUSTTAIL return rv32i_ldd(d, exec, cpu, pc, counter); \
+		else                           	\
+			RISCV_UNREACHABLE();       	\
+	case RV32I_BC_STD:                 	\
+		if constexpr (W == 8)          	\
+			MUSTTAIL return rv32i_std(d, exec, cpu, pc, counter); \
+		else                           	\
+			RISCV_UNREACHABLE();
+#define RV64I_GENERAL_OPS() \
+	case RV64I_BC_ADDIW: 			   	\
+		if constexpr (W == 8) 		   	\
+			MUSTTAIL return rv64i_addiw(d, exec, cpu, pc, counter); \
+		else                           	\
+			RISCV_UNREACHABLE(); 	   	\
+	case RV64I_BC_SLLIW: 			   	\
+		if constexpr (W == 8) 		   	\
+			MUSTTAIL return rv64i_slliw(d, exec, cpu, pc, counter); \
+		else 						   	\
+			RISCV_UNREACHABLE(); 	   	\
+	case RV64I_BC_SRLIW:               	\
+		if constexpr (W == 8) 		   	\
+			MUSTTAIL return rv64i_srliw(d, exec, cpu, pc, counter); \
+		else 						   	\
+			RISCV_UNREACHABLE(); 	   	\
+	case RV64I_BC_SRAIW: 			   	\
+		if constexpr (W == 8)          	\
+			MUSTTAIL return rv64i_sraiw(d, exec, cpu, pc, counter); \
+		else 						   	\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_ADDW:		       	\
+		if constexpr (W == 8)	       	\
+			MUSTTAIL return rv64i_op_addw(d, exec, cpu, pc, counter); \
+		else 					       	\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_SUBW:		   		\
+		if constexpr (W == 8)	   		\
+			MUSTTAIL return rv64i_op_subw(d, exec, cpu, pc, counter); \
+		else				   			\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_MULW:		   		\
+		if constexpr (W == 8)	   		\
+			MUSTTAIL return rv64i_op_mulw(d, exec, cpu, pc, counter); \
+		else			   				\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_ADD_UW:	   		\
+		if constexpr (W == 8)	   		\
+			MUSTTAIL return rv64i_op_add_uw(d, exec, cpu, pc, counter); \
+		else		   					\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_SH1ADD_UW:	   		\
+		if constexpr (W == 8)	   		\
+			MUSTTAIL return rv64i_op_sh1add_uw(d, exec, cpu, pc, counter); \
+		else		   					\
+			RISCV_UNREACHABLE();	   	\
+	case RV64I_BC_OP_SH2ADD_UW:	   		\
+		if constexpr (W == 8)	   		\
+			MUSTTAIL return rv64i_op_sh2add_uw(d, exec, cpu, pc, counter); \
+		else	   						\
+			RISCV_UNREACHABLE();
+#else
+#define RV64I_LOAD_STORE()  /* */
+#define RV64I_GENERAL_OPS() /* */
+#endif
+#ifdef RISCV_EXT_COMPRESSED
+#define RV32C_GENERAL_OPS() \
+	case RV32C_BC_ADDI: 		   		\
+		MUSTTAIL return rv32c_addi(d, exec, cpu, pc, counter); \
+	case RV32C_BC_LI: 		   			\
+		MUSTTAIL return rv32c_addi(d, exec, cpu, pc, counter); \
+	case RV32C_BC_MV: 		   			\
+		MUSTTAIL return rv32c_mv(d, exec, cpu, pc, counter); \
+	case RV32C_BC_SLLI: 		   		\
+		MUSTTAIL return rv32c_slli(d, exec, cpu, pc, counter); \
+	case RV32C_BC_BEQZ: 		   		\
+		MUSTTAIL return rv32c_beqz(d, exec, cpu, pc, counter); \
+	case RV32C_BC_BNEZ: 		   		\
+		MUSTTAIL return rv32c_bnez(d, exec, cpu, pc, counter); \
+	case RV32C_BC_JMP: 		   			\
+		MUSTTAIL return rv32c_jmp(d, exec, cpu, pc, counter); \
+	case RV32C_BC_JR: 		   			\
+		MUSTTAIL return rv32c_jr(d, exec, cpu, pc, counter); \
+	case RV32C_BC_JAL_ADDIW: 		   	\
+		MUSTTAIL return rv32c_jal_addiw(d, exec, cpu, pc, counter); \
+	case RV32C_BC_JALR: 		   		\
+		MUSTTAIL return rv32c_jalr(d, exec, cpu, pc, counter); \
+	case RV32C_BC_LDD: 		   			\
+		MUSTTAIL return rv32c_ldd(d, exec, cpu, pc, counter); \
+	case RV32C_BC_STD: 		   			\
+		MUSTTAIL return rv32c_std(d, exec, cpu, pc, counter); \
+	case RV32C_BC_SRLI: 		   		\
+		MUSTTAIL return rv32c_srli(d, exec, cpu, pc, counter); \
+	case RV32C_BC_ANDI: 		   		\
+		MUSTTAIL return rv32c_andi(d, exec, cpu, pc, counter); \
+	case RV32C_BC_XOR: 		   			\
+		MUSTTAIL return rv32c_xor(d, exec, cpu, pc, counter); \
+	case RV32C_BC_FUNCTION: 		   	\
+		MUSTTAIL return rv32c_func(d, exec, cpu, pc, counter); \
+	case RV32C_BC_JUMPFUNC: 		   	\
+		MUSTTAIL return rv32c_jumpfunc(d, exec, cpu, pc, counter);
+#else
+#define RV32C_GENERAL_OPS() /* */
+#endif
+#ifdef RISCV_BINARY_TRANSLATION
+#define TRANSLATOR_OPS() \
+	case RV32I_BC_TRANSLATOR: 		   	\
+		MUSTTAIL return translated_function(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LIVEPATCH: 		   	\
+		MUSTTAIL return execute_livepatch(d, exec, cpu, pc, counter);
+#else
+#define TRANSLATOR_OPS() /* */
+#endif
+
+#define EXECUTE_CURRENT()              	\
+	switch (d->get_bytecode()) {       	\
+	case RV32I_BC_INVALID:             	\
+		MUSTTAIL return execute_invalid(d, exec, cpu, pc, counter); \
+	case RV32I_BC_ADDI:                	\
+		MUSTTAIL return rv32i_addi(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LI:                  	\
+		MUSTTAIL return rv32i_li(d, exec, cpu, pc, counter); \
+	case RV32I_BC_MV:                  	\
+		MUSTTAIL return rv32i_mv(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SLLI:                	\
+		MUSTTAIL return rv32i_slli(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SLTI:                	\
+		MUSTTAIL return rv32i_slti(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SLTIU:               	\
+		MUSTTAIL return rv32i_sltiu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_XORI:                	\
+		MUSTTAIL return rv32i_xori(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SRLI:                	\
+		MUSTTAIL return rv32i_srli(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SRAI:                	\
+		MUSTTAIL return rv32i_srai(d, exec, cpu, pc, counter); \
+	case RV32I_BC_ORI:                 	\
+		MUSTTAIL return rv32i_ori(d, exec, cpu, pc, counter); \
+	case RV32I_BC_ANDI:                	\
+		MUSTTAIL return rv32i_andi(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LUI:                 	\
+		MUSTTAIL return rv32i_lui(d, exec, cpu, pc, counter); \
+	case RV32I_BC_AUIPC:               	\
+		MUSTTAIL return rv32i_auipc(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LDB:                 	\
+		MUSTTAIL return rv32i_ldb(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LDBU:                	\
+		MUSTTAIL return rv32i_ldbu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LDH:                 	\
+		MUSTTAIL return rv32i_ldh(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LDHU:                	\
+		MUSTTAIL return rv32i_ldhu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_LDW:                 	\
+		MUSTTAIL return rv32i_ldw(d, exec, cpu, pc, counter); \
+	case RV32I_BC_STB:                 	\
+		MUSTTAIL return rv32i_stb(d, exec, cpu, pc, counter); \
+	case RV32I_BC_STH:                 	\
+		MUSTTAIL return rv32i_sth(d, exec, cpu, pc, counter); \
+	case RV32I_BC_STW:                 	\
+		MUSTTAIL return rv32i_stw(d, exec, cpu, pc, counter); \
+	RV64I_LOAD_STORE()				 	\
+	case RV32I_BC_BEQ:                 	\
+		MUSTTAIL return rv32i_beq(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BNE:                 	\
+		MUSTTAIL return rv32i_bne(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BLT:                 	\
+		MUSTTAIL return rv32i_blt(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BGE:                 	\
+		MUSTTAIL return rv32i_bge(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BLTU:                	\
+		MUSTTAIL return rv32i_bltu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BGEU:                	\
+		MUSTTAIL return rv32i_bgeu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BEQ_FW:              	\
+		MUSTTAIL return rv32i_beq_fw(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BNE_FW:              	\
+		MUSTTAIL return rv32i_bne_fw(d, exec, cpu, pc, counter); \
+	case RV32I_BC_JAL:                 	\
+		MUSTTAIL return rv32i_jal(d, exec, cpu, pc, counter); \
+	case RV32I_BC_JALR:                	\
+		MUSTTAIL return rv32i_jalr(d, exec, cpu, pc, counter); \
+	case RV32I_BC_FAST_JAL:            	\
+		MUSTTAIL return rv32i_fast_jal(d, exec, cpu, pc, counter); \
+	case RV32I_BC_FAST_CALL:           	\
+		MUSTTAIL return rv32i_fast_call(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_ADD:              	\
+		MUSTTAIL return rv32i_op_add(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SUB:              	\
+		MUSTTAIL return rv32i_op_sub(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SLL:              	\
+		MUSTTAIL return rv32i_op_sll(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SLT:              	\
+		MUSTTAIL return rv32i_op_slt(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SLTU:             	\
+		MUSTTAIL return rv32i_op_sltu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_XOR:              	\
+		MUSTTAIL return rv32i_op_xor(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SRL:              	\
+		MUSTTAIL return rv32i_op_srl(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_OR:               	\
+		MUSTTAIL return rv32i_op_or(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_AND:              	\
+		MUSTTAIL return rv32i_op_and(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_MUL:              	\
+		MUSTTAIL return rv32i_op_mul(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_DIV:              	\
+		MUSTTAIL return rv32i_op_div(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_DIVU:             	\
+		MUSTTAIL return rv32i_op_divu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_REM:              	\
+		MUSTTAIL return rv32i_op_rem(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_REMU:             	\
+		MUSTTAIL return rv32i_op_remu(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SRA:              	\
+		MUSTTAIL return rv32i_op_sra(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_ZEXT_H:           	\
+		MUSTTAIL return rv32i_op_zext_h(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SH1ADD:           	\
+		MUSTTAIL return rv32i_op_sh1add(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SH2ADD:           	\
+		MUSTTAIL return rv32i_op_sh2add(d, exec, cpu, pc, counter); \
+	case RV32I_BC_OP_SH3ADD:           	\
+		MUSTTAIL return rv32i_op_sh3add(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SEXT_B:              	\
+		MUSTTAIL return rv32i_sext_b(d, exec, cpu, pc, counter); \
+	case RV32I_BC_SEXT_H:              	\
+		MUSTTAIL return rv32i_sext_h(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BSETI:               	\
+		MUSTTAIL return rv32i_bseti(d, exec, cpu, pc, counter); \
+	case RV32I_BC_BEXTI:               	\
+		MUSTTAIL return rv32i_bexti(d, exec, cpu, pc, counter); \
+	RV64I_GENERAL_OPS()					\
+	RV32C_GENERAL_OPS()					\
+	case RV32I_BC_SYSCALL: 		   		\
+		MUSTTAIL return rv32i_syscall(d, exec, cpu, pc, counter); \
+	case RV32I_BC_STOP:			   		\
+		MUSTTAIL return rv32i_stop(d, exec, cpu, pc, counter); \
+	case RV32I_BC_NOP:		   			\
+		MUSTTAIL return rv32i_nop(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FLW:		   			\
+		MUSTTAIL return rv32i_flw(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FLD:		   			\
+		MUSTTAIL return rv32i_fld(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FSW:		   			\
+		MUSTTAIL return rv32i_fsw(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FSD:		   			\
+		MUSTTAIL return rv32i_fsd(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FADD:		   			\
+		MUSTTAIL return rv32f_fadd(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FSUB:		   			\
+		MUSTTAIL return rv32f_fsub(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FMUL:		   			\
+		MUSTTAIL return rv32f_fmul(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FDIV:		   			\
+		MUSTTAIL return rv32f_fdiv(d, exec, cpu, pc, counter); \
+	case RV32F_BC_FMADD:		   		\
+		MUSTTAIL return rv32f_fmadd(d, exec, cpu, pc, counter); \
+	case RV32I_BC_FUNCTION:		   		\
+		MUSTTAIL return execute_decoded_function(d, exec, cpu, pc, counter); \
+	case RV32I_BC_FUNCBLOCK:		   	\
+		MUSTTAIL return execute_function_block(d, exec, cpu, pc, counter); \
+	TRANSLATOR_OPS()					\
+	case RV32I_BC_SYSTEM:		   		\
+		MUSTTAIL return rv32i_system(d, exec, cpu, pc, counter); \
+	default:                           \
+		RISCV_UNREACHABLE();           \
+	}
+
 #define NEXT_INSTR()                   \
 	d += (compressed_enabled ? 2 : 1); \
 	EXECUTE_CURRENT()
