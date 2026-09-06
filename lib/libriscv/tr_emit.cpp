@@ -1,6 +1,7 @@
 #include "machine.hpp"
 #include "decoder_cache.hpp"
 #include "instruction_list.hpp"
+#include "dyncall.hpp"
 #include <algorithm>
 #include <array>
 #include <inttypes.h>
@@ -187,11 +188,6 @@ struct Emitter
 	}
 	void store_loaded_registers() {
 		this->store_registers(this->dirty_registers());
-	}
-	void store_arg_registers() {
-		static constexpr uint32_t arg_mask =
-			(1u << 10) | (1u << 11) | (1u << 12) | (1u << 13) | (1u << 14) | (1u << 15) | (1u << 16) | (1u << 17);
-		this->store_registers(this->dirty_registers() & arg_mask);
 	}
 	const auto& get_store_masks() const noexcept { return this->m_store_masks; }
 	void reload_syscall_registers() {
@@ -1896,6 +1892,13 @@ void Emitter<W>::analyze_dirty_registers()
 			// ECALL and EBREAK store everything dirty, and reload a0/a1
 			node.kind = (instr.Itype.funct3 == 0 && instr.Itype.imm < 2) ? SYSCALL : OTHER;
 			break;
+		case Dyncall::opcode:
+			// Count fields are not register operands. Keep unsaved dirty
+			// registers flowing through the call, including around backedges.
+			node.writes = Dyncall::valid(instr.whole)
+				? Dyncall::arg_mask(Dyncall::outputs(instr.whole)) : ~0u;
+			node.kind = OTHER;
+			break;
 		default:
 			node.kind = OTHER;
 			break;
@@ -3553,16 +3556,25 @@ void Emitter<W>::emit()
 			UNKNOWN_INSTRUCTION();
 #endif
 			break;
-		case 0b1011011: // Custom-2 dynamic call: arguments in A0-A7, results in A0/A1.
-			for (unsigned i = 10; i < 18; i++) {
-				this->load_register(i);
+		case Dyncall::opcode: {
+			if (!Dyncall::valid(instr.whole)) {
+				UNKNOWN_INSTRUCTION();
+				this->reset_all_tracked_registers();
+				break;
 			}
-			this->store_arg_registers();
+			const unsigned inputs = Dyncall::inputs(instr.whole);
+			const unsigned outputs = Dyncall::outputs(instr.whole);
+			for (unsigned i = 10; i < 10 + inputs; i++)
+				this->load_register(i);
+			this->store_registers(this->dirty_registers() & Dyncall::arg_mask(inputs));
 			WELL_KNOWN_INSTRUCTION();
-			this->reload_syscall_registers();
-			this->reset_tracked_register(10);
-			this->reset_tracked_register(11);
+			for (unsigned i = 10; i < 10 + outputs; i++) {
+				this->load_register(i);
+				this->potentially_reload_register(i);
+				this->reset_tracked_register(i);
+			}
 			break;
+		}
 		default:
 			UNKNOWN_INSTRUCTION();
 		}

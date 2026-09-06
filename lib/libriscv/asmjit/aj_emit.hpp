@@ -1,6 +1,7 @@
 #pragma once
 #include "../common.hpp"
 #include "../instruction_list.hpp"
+#include "../dyncall.hpp"
 #include "../rv32i_instr.hpp"
 #include "../rvfd.hpp"
 #include "../rvv.hpp"
@@ -512,6 +513,8 @@ namespace riscv
 
 		switch (i.opcode())
 		{
+		case Dyncall::opcode:
+			return Dyncall::valid(i.whole);
 		case RV32I_LUI:
 		case RV32I_AUIPC:
 		case RV32I_JAL:
