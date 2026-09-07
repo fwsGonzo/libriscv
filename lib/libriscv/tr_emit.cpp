@@ -3567,11 +3567,23 @@ void Emitter<W>::emit()
 			for (unsigned i = 10; i < 10 + inputs; i++)
 				this->load_register(i);
 			this->store_registers(this->dirty_registers() & Dyncall::arg_mask(inputs));
+			// Publish PC even without a budget: diagnostics attribute host calls
+			// to this instruction. Counters are synchronized only when enabled.
+			code += "cpu->pc = " + PCRELS(0) + ";\n";
+			if (!tinfo.ignore_instruction_limit) {
+				this->increment_counter_so_far();
+				code += "INS_COUNTER(cpu) = ic; MAX_COUNTER(cpu) = max_ic;\n";
+			}
 			WELL_KNOWN_INSTRUCTION();
 			for (unsigned i = 10; i < 10 + outputs; i++) {
 				this->load_register(i);
 				this->potentially_reload_register(i);
 				this->reset_tracked_register(i);
+			}
+			if (!tinfo.ignore_instruction_limit) {
+				code += "ic = INS_COUNTER(cpu); max_ic = MAX_COUNTER(cpu);\n";
+				code += "if (UNLIKELY(ic >= max_ic)) {\n";
+				this->exit_function(PCRELS(4), true);
 			}
 			break;
 		}

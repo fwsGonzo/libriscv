@@ -1,6 +1,7 @@
 #include "aj_emit.hpp"
 #include "aj_runtime.hpp"
 #include "../cpu.hpp"
+#include "../machine.hpp"
 #include "../decoded_exec_segment.hpp"
 #include "../memory.hpp"
 #include "../riscvbase.hpp"
@@ -1129,16 +1130,53 @@ struct AjEmitter
 	// that caches no f-registers still costs nothing.
 	static constexpr unsigned FP_INPUTS = 8, FP_OUTPUTS = 2;
 
+	// The ordinary execute helper does not touch counters. Only budgeted
+	// dyncalls need to publish the live count and collect handler penalties.
+	static uint32_t execute_counted_dyncall(CPU<W>& cpu, AjState<W>* st,
+		uint32_t instr, address_t pc, const void* handler) noexcept
+	{
+		auto& machine = cpu.machine();
+		machine.set_instruction_counter(st->counter);
+		machine.set_max_instructions(st->max_counter);
+		cpu.registers().pc = pc;
+		try {
+			auto fn = reinterpret_cast<instruction_handler<W>>(
+				reinterpret_cast<uintptr_t>(handler));
+			fn(cpu, rv32i_instruction{instr});
+		} catch (...) {
+			cpu.set_current_exception(std::current_exception());
+			st->max_counter = 0;
+			machine.stop();
+			return 1;
+		}
+		st->counter = machine.instruction_counter();
+		st->max_counter = machine.max_instructions();
+		return 0;
+	}
+
 	void emit_dyncall(address_t pc, rv32i_instruction i)
 	{
 		for (unsigned r = 10; r < 10 + Dyncall::inputs(i.whole); r++)
 			if (writeset[r]) uc.store(reg_mem(r), vreg[r]);
 		for (unsigned r = REG_FA0; r < REG_FA0 + FP_INPUTS; r++)
 			if (fp_writeset[r]) uc.v_storeu64_u64(freg_mem(r), fvreg[r]);
+		if (!info.ignore_instruction_limit) {
+			Gp retired = uc.new_gp64("dyncnt");
+			uc.add(retired, counter, Imm(pending));
+			uc.store(mem_ptr(st, off_counter()), retired);
+		}
 		const auto handler = uint64_t(uintptr_t(CPU<W>::decode(i).handler));
 		InvokeNode* node;
-		cc.invoke(Out(node), uint64_t(uintptr_t(info.cb->execute)),
-			FuncSignature::build<void, void*, void*, uint32_t, address_t, const void*>());
+		Gp fault;
+		if (info.ignore_instruction_limit) {
+			cc.invoke(Out(node), uint64_t(uintptr_t(info.cb->execute)),
+				FuncSignature::build<void, void*, void*, uint32_t, address_t, const void*>());
+		} else {
+			cc.invoke(Out(node), uint64_t(uintptr_t(execute_counted_dyncall)),
+				FuncSignature::build<uint32_t, void*, void*, uint32_t, address_t, const void*>());
+			fault = uc.new_gp32("dyncall_fault");
+			node->set_ret(0, fault);
+		}
 		node->set_arg(0, cpu);
 		node->set_arg(1, st);
 		node->set_arg(2, Imm(i.whole));
@@ -1148,7 +1186,17 @@ struct AjEmitter
 			if (readset[r]) uc.load(vreg[r], reg_mem(r));
 		for (unsigned r = REG_FA0; r < REG_FA0 + FP_OUTPUTS; r++)
 			if (fp_readset[r]) uc.v_loadu64_u64(fvreg[r], freg_mem(r));
-		emit_fault_check(pc, pending - 1);
+		if (info.ignore_instruction_limit) {
+			emit_fault_check(pc, pending - 1);
+		} else {
+			Label ok = uc.new_label();
+			uc.j(ok, test_z(fault));
+			emit_exit(pc, pending - 1);
+			uc.bind(ok);
+			uc.load(counter, mem_ptr(st, off_counter()));
+			pending = 0;
+			emit_backedge_check(pc + 4);
+		}
 	}
 
 	/// @brief Run one instruction via the interpreter handler; write back cached operands, reload rd.
