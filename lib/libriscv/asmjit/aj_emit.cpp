@@ -1125,7 +1125,7 @@ struct AjEmitter
 
 	// A dyncall stub is an ordinary C function, so fa0-fa7 carry the
 	// floating-point arguments and fa0-fa1 the floating-point results even
-	// though the encoding carries no f-register counts. Spilling is gated on
+	// unless a counted call explicitly promises no FP access. Spilling is gated on
 	// the region holding a newer value than memory, so a dyncall in a region
 	// that caches no f-registers still costs nothing.
 	static constexpr unsigned FP_INPUTS = 8, FP_OUTPUTS = 2;
@@ -1158,8 +1158,9 @@ struct AjEmitter
 	{
 		for (unsigned r = 10; r < 10 + Dyncall::inputs(i.whole); r++)
 			if (writeset[r]) uc.store(reg_mem(r), vreg[r]);
-		for (unsigned r = REG_FA0; r < REG_FA0 + FP_INPUTS; r++)
-			if (fp_writeset[r]) uc.v_storeu64_u64(freg_mem(r), fvreg[r]);
+		if (Dyncall::floats(i.whole))
+			for (unsigned r = REG_FA0; r < REG_FA0 + FP_INPUTS; r++)
+				if (fp_writeset[r]) uc.v_storeu64_u64(freg_mem(r), fvreg[r]);
 		if (!info.ignore_instruction_limit) {
 			Gp retired = uc.new_gp64("dyncnt");
 			uc.add(retired, counter, Imm(pending));
@@ -1184,8 +1185,9 @@ struct AjEmitter
 		node->set_arg(4, Imm(handler));
 		for (unsigned r = 10; r < 10 + Dyncall::outputs(i.whole); r++)
 			if (readset[r]) uc.load(vreg[r], reg_mem(r));
-		for (unsigned r = REG_FA0; r < REG_FA0 + FP_OUTPUTS; r++)
-			if (fp_readset[r]) uc.v_loadu64_u64(fvreg[r], freg_mem(r));
+		if (Dyncall::floats(i.whole))
+			for (unsigned r = REG_FA0; r < REG_FA0 + FP_OUTPUTS; r++)
+				if (fp_readset[r]) uc.v_loadu64_u64(fvreg[r], freg_mem(r));
 		if (info.ignore_instruction_limit) {
 			emit_fault_check(pc, pending - 1);
 		} else {
