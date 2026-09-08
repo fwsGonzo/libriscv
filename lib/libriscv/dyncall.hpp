@@ -6,7 +6,7 @@ namespace riscv {
 //
 //   31          20 19         15 14   12 11        7 6    0
 //  +--------------+-------------+-------+-----------+------+
-//  |    index     | 0b111 | out | 0b111 | 0b1 | in  | 0x5B |  counted
+//  |    index     | 0b11 |F|out | 0b111 | 0b1 | in  | 0x5B |  counted
 //  +--------------+-------------+-------+-----------+------+
 //  |    index     |    x0       | 0b000 |    x0     | 0x5B |  legacy
 //  +--------------+-------------+-------+-----------+------+
@@ -19,8 +19,9 @@ struct Dyncall {
 	static constexpr unsigned counted_funct3 = 0b111;
 	/// @brief rd  = rd_tag << 4 | inputs, so bit 11 separates it from a small rd.
 	static constexpr unsigned rd_tag  = 0b1;
-	/// @brief rs1 = rs1_tag << 2 | outputs, so bits 19:17 separate it from a small rs1.
+	/// @brief Bits 19:18 tag rs1; bit 17 enables floating-point synchronization.
 	static constexpr unsigned rs1_tag = 0b111;
+	static constexpr uint32_t float_mask = 1u << 17;
 	static constexpr unsigned max_inputs  = 8;
 	static constexpr unsigned max_outputs = 2;
 
@@ -35,7 +36,7 @@ struct Dyncall {
 		const unsigned rs1 = (word >> 15) & 31;
 		if (is_counted(word))
 			return (rd >> 4) == rd_tag   && (rd  & 15) <= max_inputs
-				&& (rs1 >> 2) == rs1_tag && (rs1 & 3)  <= max_outputs;
+				&& ((rs1 | 4) >> 2) == rs1_tag && (rs1 & 3) <= max_outputs;
 		// Legacy (no counts)
 		return ((word >> 12) & 7) == 0 && rd == 0 && rs1 == 0;
 	}
@@ -47,13 +48,20 @@ struct Dyncall {
 	static constexpr unsigned outputs(uint32_t word) noexcept {
 		return is_counted(word) ? ((word >> 15) & 3) : max_outputs;
 	}
+	/// @brief Synchronize fa0-fa7 inputs and fa0-fa1 outputs. Clearing the bit
+	/// promises no guest FP register access by the handler. The embedder must
+	/// validate that promise; legacy and existing counted words retain FP.
+	static constexpr bool floats(uint32_t word) noexcept {
+		return !is_counted(word) || (word & float_mask) != 0;
+	}
 	static constexpr uint32_t arg_mask(unsigned count) noexcept {
 		return ((1u << count) - 1) << 10;
 	}
 	// Caller: validate index < 4096, inputs <= 8 and outputs <= 2.
-	static constexpr uint32_t encode(unsigned index, unsigned inputs, unsigned outputs) noexcept {
+	static constexpr uint32_t encode(unsigned index, unsigned inputs, unsigned outputs,
+		bool floats = true) noexcept {
 		return (index << 20)
-			| (((rs1_tag << 2) | outputs) << 15)
+			| ((((rs1_tag << 2) & ~4u) | (floats ? 4u : 0u) | outputs) << 15)
 			| (counted_funct3 << 12)
 			| (((rd_tag << 4) | inputs) << 7)
 			| opcode;
@@ -63,6 +71,10 @@ static_assert(Dyncall::valid(Dyncall::encode(4095, 8, 2)), "The counted form rou
 static_assert(Dyncall::inputs(Dyncall::encode(0, 5, 1)) == 5, "rd has the input count");
 static_assert(Dyncall::outputs(Dyncall::encode(0, 5, 1)) == 1, "rs1 has the output count");
 static_assert(Dyncall::valid(Dyncall::opcode), "The legacy form needs no counts");
+static_assert(Dyncall::floats(Dyncall::opcode) && Dyncall::floats(Dyncall::encode(0, 0, 0)),
+	"Existing callers retain floating-point synchronization");
+static_assert(Dyncall::valid(Dyncall::encode(4095, 8, 2, false)) &&
+	!Dyncall::floats(Dyncall::encode(4095, 8, 2, false)), "Integer-only counted form");
 static_assert(Dyncall::inputs(Dyncall::opcode) == 8 && Dyncall::outputs(Dyncall::opcode) == 2,
 	"The legacy form is the full argument range");
 // A custom instruction that merely reuses custom-2 must not read as a dyncall.
