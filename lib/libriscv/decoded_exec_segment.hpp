@@ -152,7 +152,8 @@ namespace riscv
 		void set_likely_jit(bool is_jit) { m_is_likely_jit = is_jit; }
 
 		bool is_stale() const noexcept { return m_is_stale; }
-		void set_stale(bool is_stale) { m_is_stale = is_stale; }
+		// XO-segments *must not be rebuilt*, so they should never be stale.
+		void set_stale(bool is_stale) { m_is_stale = is_stale && !m_is_execute_only; }
 
 		// Part of the shared-segment key: unchecked code must not be handed to a sandboxed Machine.
 		bool is_unchecked_memory() const noexcept { return m_unchecked_memory; }

@@ -803,6 +803,8 @@ namespace riscv
 		DecodedExecuteSegment<W>& segment, address_type<W> begin, address_type<W> end) noexcept
 	{
 		using address_t = address_type<W>;
+		if (segment.is_execute_only())
+			return;
 		if (segment.exec_begin() >= end || begin >= segment.exec_end())
 			return;
 		const address_t lo = begin > segment.exec_begin()

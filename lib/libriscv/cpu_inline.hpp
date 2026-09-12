@@ -32,6 +32,8 @@ inline void CPU<W>::reset_stack_pointer() noexcept
 template<int W>
 inline bool CPU<W>::guest_rewrote_code(const DecodedExecuteSegment<W>& exec, address_t pc)
 {
+	if (UNLIKELY(exec.is_execute_only()))
+		return false;
 	if (UNLIKELY(!exec.is_within(pc)))
 		return false;
 #if __cpp_exceptions
